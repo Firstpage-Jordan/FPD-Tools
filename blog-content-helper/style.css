@@ -1,0 +1,72 @@
+body {
+  font-family: "Open Sans", sans-serif;
+}
+
+.description {
+  margin: 0 auto;
+  padding: 50px;
+}
+
+.description-text {
+  text-align: justify;
+}
+
+.text-fields {
+  justify-content: center;
+}
+
+.container-fluid {
+  padding: 0px 50px;
+}
+
+.navbar-nav {
+  flex-direction: initial;
+}
+
+.nav-item {
+  padding: 0px 10px;
+}
+
+.logo {
+  max-width: 75px;
+  filter: invert(1);
+}
+
+.description-header,
+.input-header {
+  color: #211295;
+  margin-bottom: 20px;
+}
+
+.input--text-area,
+.output--text-area {
+  box-shadow: rgba(100, 100, 111, 0.2) 0px 7px 29px 0px;
+}
+
+.copy-button {
+  margin-top: 10px;
+  box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px;
+  float: right;
+}
+
+.clear-button {
+  margin-top: 10px;
+  box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px;
+  float: left;
+}
+
+.submit-button {
+  margin-top: 20px;
+  box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px;
+}
+
+.hide {
+  display: none;
+}
+
+.message {
+  margin: 10px;
+  font-size: 20px;
+  background-color: limegreen;
+  padding: 5px;
+}
