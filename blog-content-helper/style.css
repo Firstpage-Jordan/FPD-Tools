@@ -77,5 +77,10 @@ body {
   float: right;
   right: 25px;
   bottom: 50px;
-  font-size: 30px;
+  font-size: 25px;
+  opacity: 50%;
+}
+
+.scroll-up-button:hover {
+  opacity: 100%;
 }
