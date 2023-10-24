@@ -98,12 +98,32 @@ window.addEventListener("scroll", (e) => {
 });
 
 // copy preview button
-copyPreviewButton.addEventListener("click", () => {
-  let previewContent = outputHTML.innerHTML;
-  let originalButtonContent = copyPreviewButton.innerHTML;
+// copyPreviewButton.addEventListener("click", () => {
+//   let previewContent = outputHTML.innerHTML;
+//   let originalButtonContent = copyPreviewButton.innerHTML;
 
-  // copy output content to clipboard
-  navigator.clipboard.writeText(previewContent);
+//   // copy output content to clipboard
+//   navigator.clipboard.writeText(previewContent);
+
+//   // edit button text
+//   copyPreviewButton.textContent = "Copied to clipboard!";
+
+//   // reset button text to original after 2 seconds
+//   setTimeout(() => {
+//     copyPreviewButton.innerHTML = originalButtonContent;
+//   }, 1500);
+// });
+
+// copy preview button
+copyPreviewButton.addEventListener("click", copyToClipboard);
+
+function copyToClipboard(id) {
+  let originalButtonContent = copyPreviewButton.innerHTML;
+  let r = document.createRange();
+  r.selectNode(outputHTML);
+  window.getSelection().removeAllRanges();
+  window.getSelection().addRange(r);
+  document.execCommand("copy");
 
   // edit button text
   copyPreviewButton.textContent = "Copied to clipboard!";
@@ -112,4 +132,4 @@ copyPreviewButton.addEventListener("click", () => {
   setTimeout(() => {
     copyPreviewButton.innerHTML = originalButtonContent;
   }, 1500);
-});
+}
