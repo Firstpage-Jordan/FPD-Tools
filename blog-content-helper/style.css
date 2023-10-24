@@ -70,3 +70,12 @@ body {
   background-color: limegreen;
   padding: 5px;
 }
+
+.scroll-up-button {
+  position: sticky;
+  border-radius: 25%;
+  float: right;
+  right: 25px;
+  bottom: 50px;
+  font-size: 30px;
+}

@@ -1,8 +1,10 @@
 const submitButton = document.querySelector(".submit-button");
 const inputField = document.querySelector(".input--text-area");
 const outputField = document.querySelector(".output--text-area");
-const outputhtml = document.querySelector(".output-html");
+const outputHTML = document.querySelector(".output-html");
 const clearButton = document.querySelector(".clear-button");
+const scrollUpButton = document.querySelector(".scroll-up-button");
+const copyPreviewButton = document.querySelector(".copy-preview-button");
 
 const message = document.querySelector(".message");
 const copyButton = document.querySelector(".copy-button");
@@ -33,6 +35,9 @@ submitButton.addEventListener("click", function () {
     // output success message
     message.classList.remove("hide");
 
+    // show copy preview button
+    copyPreviewButton.style.display = "block";
+
     return line;
   });
 
@@ -44,17 +49,23 @@ submitButton.addEventListener("click", function () {
   outputField.value = cleanContentJoined;
 
   // output the HTML
-  outputhtml.innerHTML = cleanContentJoined;
+  outputHTML.innerHTML = cleanContentJoined;
 });
 
 copyButton.addEventListener("click", () => {
   let cleanedContent = outputField.value;
+  let originalButtonContent = copyButton.innerHTML;
 
   // copy output content to clipboard
   navigator.clipboard.writeText(cleanedContent);
 
   // edit button text
   copyButton.textContent = "Copied to clipboard!";
+
+  // reset button text to original after 2 seconds
+  setTimeout(() => {
+    copyButton.innerHTML = originalButtonContent;
+  }, 1500);
 });
 
 // focus on input field when window loads
@@ -67,5 +78,38 @@ clearButton.addEventListener("click", () => {
   inputField.value = "";
   outputField.value = "";
   message.classList.add("hide");
-  outputhtml.innerHTML = "";
+  outputHTML.innerHTML = "";
+  // hide copy preview button
+  copyPreviewButton.style.display = "none";
+});
+
+// scroll to top
+scrollUpButton.addEventListener("click", () => {
+  window.scrollTo({
+    top: 0,
+    left: 0,
+    behavior: "smooth",
+  });
+});
+
+// show scroll button when user scrolls down
+window.addEventListener("scroll", (e) => {
+  scrollUpButton.style.display = window.scrollY > 20 ? "block" : "none";
+});
+
+// copy preview button
+copyPreviewButton.addEventListener("click", () => {
+  let previewContent = outputHTML.innerHTML;
+  let originalButtonContent = copyPreviewButton.innerHTML;
+
+  // copy output content to clipboard
+  navigator.clipboard.writeText(previewContent);
+
+  // edit button text
+  copyPreviewButton.textContent = "Copied to clipboard!";
+
+  // reset button text to original after 2 seconds
+  setTimeout(() => {
+    copyPreviewButton.innerHTML = originalButtonContent;
+  }, 1500);
 });
