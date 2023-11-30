@@ -80,6 +80,7 @@ clearButton.addEventListener("click", () => {
   outputField.value = "";
   message.classList.add("hide");
   outputhtml.innerHTML = "";
+  copyPreviewButton.classList.add("hide");
 });
 
 copyPreviewButton.addEventListener("click", () => {
