@@ -3,9 +3,9 @@ const inputField = document.querySelector(".input--text-area");
 const outputField = document.querySelector(".output--text-area");
 const outputhtml = document.querySelector(".output-html");
 const clearButton = document.querySelector(".clear-button");
-
 const message = document.querySelector(".message");
 const copyButton = document.querySelector(".copy-button");
+const copyPreviewButton = document.querySelector(".copy-preview-button");
 
 submitButton.addEventListener("click", function () {
   let uncleanContent = inputField.value;
@@ -40,6 +40,7 @@ submitButton.addEventListener("click", function () {
 
     // output success message
     message.classList.remove("hide");
+    copyPreviewButton.classList.remove("hide");
 
     return line;
   });
@@ -53,14 +54,19 @@ submitButton.addEventListener("click", function () {
   outputhtml.innerHTML = cleanContentJoined;
 });
 
+// copy to clipboard button
 copyButton.addEventListener("click", () => {
   let cleanedContent = outputField.value;
 
   // copy output content to clipboard
   navigator.clipboard.writeText(cleanedContent);
 
-  // edit button text
+  // edit button text then change back to original text
   copyButton.textContent = "Copied to clipboard!";
+  setTimeout(() => {
+    copyButton.innerHTML =
+      'Copy to clipboard <i class="fa fa-solid fa-copy"></i>';
+  }, 2000);
 });
 
 // focus on input field when window loads
@@ -74,4 +80,22 @@ clearButton.addEventListener("click", () => {
   outputField.value = "";
   message.classList.add("hide");
   outputhtml.innerHTML = "";
+});
+
+copyPreviewButton.addEventListener("click", () => {
+  let r = document.createRange();
+  r.selectNode(outputhtml);
+  window.getSelection().removeAllRanges();
+  window.getSelection().addRange(r);
+  document.execCommand("copy");
+
+  // edit button text
+  copyPreviewButton.textContent = "Copied to clipboard!";
+
+  // edit button text then change back to original text
+  copyPreviewButton.textContent = "Copied to clipboard!";
+  setTimeout(() => {
+    copyPreviewButton.innerHTML =
+      'Copy to clipboard <i class="fa fa-solid fa-copy"></i>';
+  }, 2000);
 });
