@@ -208,11 +208,13 @@ class Breeze_ConfigCache {
 		$lazy_load_native  = Breeze_Options_Reader::get_option_value( 'breeze-lazy-load-native', false, $create_root_config );
 		$preload_links     = Breeze_Options_Reader::get_option_value( 'breeze-preload-links', false, $create_root_config );
 		$lazy_load_iframes = Breeze_Options_Reader::get_option_value( 'breeze-lazy-load-iframes', false, $create_root_config );
+		$lazy_load_videos = Breeze_Options_Reader::get_option_value( 'breeze-lazy-load-videos', false, $create_root_config );
 
 		$storage['enabled-lazy-load']        = ( isset( $lazy_load ) ? $lazy_load : 0 );
 		$storage['use-lazy-load-native']     = ( isset( $lazy_load_native ) ? $lazy_load_native : 0 );
 		$storage['breeze-preload-links']     = ( isset( $preload_links ) ? $preload_links : 0 );
 		$storage['breeze-lazy-load-iframes'] = ( isset( $lazy_load_iframes ) ? $lazy_load_iframes : 0 );
+		$storage['breeze-lazy-load-videos'] = ( isset( $lazy_load_videos ) ? $lazy_load_videos : 0 );
 
 		//  CURCY - WooCommerce Multi Currency Premium.
 		if (
@@ -434,6 +436,36 @@ class Breeze_ConfigCache {
 					! empty( Breeze_Options_Reader::get_option_value( 'breeze-exclude-urls', false, $create_root_config ) ) ? Breeze_Options_Reader::get_option_value( 'breeze-exclude-urls', false, $create_root_config ) : array(),
 					$ecommerce_exclude_urls
 				);
+			}
+		}
+
+		$the_headers = breeze_helper_fetch_headers();
+
+		$allowed_headers =  apply_filters('breeze_custom_headers_allow', array(
+			'content-security-policy',
+			'x-frame-options',
+			'referrer-policy',
+			'strict-transport-security',
+			'X-Content-Type-Options',
+			'Access-Control-Allow-Origin',
+			'Cross-Origin-Opener-Policy',
+			'Cross-Origin-Embedder-Policy',
+			'Cross-Origin-Resource-Policy',
+			'Permissions-Policy',
+			'X-XSS-Protection',
+		));
+
+		if(is_array($the_headers) && !empty($the_headers)){
+			$to_save_headers = array();
+
+			foreach($allowed_headers as $header_name){
+				$header_name = strtolower( $header_name);
+				if(array_key_exists($header_name, $the_headers)){
+					$to_save_headers[$header_name] = $the_headers[$header_name];
+				}
+			}
+			if(!empty($to_save_headers)){
+				$storage['breeze_custom_headers'] = $to_save_headers;
 			}
 		}
 

@@ -10,7 +10,7 @@ class BVInfoCallback extends BVCallbackBase {
 	public $bvinfo;
 	public $bvapi;
 	
-	const INFO_WING_VERSION = 1.8;
+	const INFO_WING_VERSION = 2.2;
 
 	public function __construct($callback_handler) {
 		$this->db = $callback_handler->db;
@@ -45,29 +45,19 @@ class BVInfoCallback extends BVCallbackBase {
 		);
 	}
 
-	public function getLatestWooCommerceDB() {
-		$version = false;
-
-		if (defined('WC_ABSPATH') && file_exists(WC_ABSPATH . 'includes/class-wc-install.php')) {
-			include_once WC_ABSPATH . 'includes/class-wc-install.php';
-		}
-
-		if (class_exists('WC_Install')) {
-			$update_versions = array_keys(WC_Install::get_db_update_callbacks());
-			usort($update_versions, 'version_compare');
-			if (!empty($update_versions)) {
-				$version = end($update_versions);
-			}
-		}
-
-		return $version;
-	}
-
 	public function addDBInfoToPlugin($pdata, $plugin_file) {
 		switch ($plugin_file) {
 		case "woocommerce/woocommerce.php":
 			$pdata['current_db_version'] = $this->settings->getOption('woocommerce_db_version');
-			$pdata['latest_db_version'] = $this->getLatestWooCommerceDB();
+			$pdata['latest_db_version'] = $this->bvinfo->getLatestWooCommerceDBVersion();
+			break;
+		case "elementor/elementor.php":
+			$pdata['current_db_version'] = $this->settings->getOption('elementor_version');
+			$pdata['latest_db_version'] = $this->bvinfo->getLatestElementorDBVersion($plugin_file);
+			break;
+		case "elementor-pro/elementor-pro.php":
+			$pdata['current_db_version'] = $this->settings->getOption('elementor_pro_version');
+			$pdata['latest_db_version'] = $this->bvinfo->getLatestElementorDBVersion($plugin_file);
 			break;
 		}
 
@@ -86,7 +76,11 @@ class BVInfoCallback extends BVCallbackBase {
 				'title' => $plugin_data['Title'],
 				'version' => $plugin_data['Version'],
 				'active' => is_plugin_active($plugin_file),
-				'network' => $plugin_data['Network']
+				'network' => $plugin_data['Network'],
+				"plugin_uri" => $plugin_data["PluginURI"],
+				"update_uri" => $plugin_data["UpdateURI"],
+				"author_uri" => $plugin_data["AuthorURI"],
+				"author" => $plugin_data["AuthorName"],
 			);
 			$pdata = $this->addDBInfoToPlugin($pdata, $plugin_file);
 			$result["plugins"][] = $pdata;
@@ -101,7 +95,11 @@ class BVInfoCallback extends BVCallbackBase {
 				'title' => $theme->Title,
 				'stylesheet' => $theme->get_stylesheet(),
 				'template' => $theme->Template,
-				'version' => $theme->Version
+				'version' => $theme->Version,
+				'theme_uri' => $theme->get('ThemeURI'),
+				'author' => $theme->get('Author'),
+				'author_uri' => $theme->get('AuthorURI'),
+				'update_uri' => $theme->get('UpdateURI'),
 			);
 		} else {
 			$pdata = array(
@@ -109,7 +107,9 @@ class BVInfoCallback extends BVCallbackBase {
 				'title' => $theme["Title"],
 				'stylesheet' => $theme["Stylesheet"],
 				'template' => $theme["Template"],
-				'version' => $theme["Version"]
+				'version' => $theme["Version"],
+				'author' => $theme['Author'],
+				'author_uri' => $theme['Author URI'],
 			);
 		}
 		return $pdata;
@@ -287,6 +287,10 @@ class BVInfoCallback extends BVCallbackBase {
 			$host_info['WPE_APIKEY'] = WPE_APIKEY;
 		}
 
+		if (defined('IS_ATOMIC')) {
+			$host_info['IS_ATOMIC'] = IS_ATOMIC;
+		}
+
 		return $host_info;
 	}
 
@@ -393,11 +397,12 @@ class BVInfoCallback extends BVCallbackBase {
 	}
 
 	function getCoreHandler() {
-		global $wp_db_version;
+		global $wp_db_version, $wp_version;
 
 		$result = $this->getTransient('update_core');
 		$result['current_db_version'] = $this->settings->getOption('db_version');
 		$result['latest_db_version'] = $wp_db_version;
+		$result['wp_version'] = $wp_version;
 		
 		return $result;
 	}
@@ -486,6 +491,29 @@ class BVInfoCallback extends BVCallbackBase {
 		return $result;
 	}
 
+	function getPluginFileData($plugin_file) {
+		$result = array();
+
+		if (!function_exists('get_plugin_data')) {
+			require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		}
+		$plugin_data = get_plugin_data(WP_PLUGIN_DIR . '/' . $plugin_file);
+		if ($plugin_data && isset($plugin_data['Version'])) {
+			$result['version'] = $plugin_data['Version'];
+		}
+
+		return $result;
+	}
+
+	function fetchPluginApiData($slug, $action) {
+		$args = array('slug' => wp_unslash($slug));
+		$args = (object) $args;
+		$args = apply_filters('plugins_api_args', $args, $action);
+		$data = apply_filters('plugins_api', false, $action, $args);
+
+		return $data; 
+	}
+
 	public function process($request) {
 		$db = $this->db;
 		$params = $request->params;
@@ -506,7 +534,7 @@ class BVInfoCallback extends BVCallbackBase {
 			$resp = $this->getStats();
 			break;
 		case "gtdbvariables":
-			$variable = (array_key_exists('variable', $params)) ? $variable : "";
+			$variable = (array_key_exists('variable', $params)) ? $params['variable'] : "";
 			$resp = $this->db->showDbVariables($variable);
 			break;
 		case "gtplgs":
@@ -543,14 +571,20 @@ class BVInfoCallback extends BVCallbackBase {
 		case "gthost":
 			$resp = array('host_info' => $this->getHostInfo());
 			break;
+		case "gtplsinfo":
+			$resp = array("plugins_info" => array());
+			$file_by_slug = $params["file_by_slug"];
+			foreach ($params['slugs'] as $slug) {
+				$data = $this->fetchPluginApiData($slug, $params['action']);
+				if (is_object($data) && !property_exists($data, 'version') && isset($file_by_slug[$slug])) {
+					$plugin_data = $this->getPluginFileData($file_by_slug[$slug]);
+					$data->version = $plugin_data['version'];
+				}
+				$resp['plugins_info'][$slug] = $data;
+			}
+			break;
 		case "gtplinfo":
-			$args = array(
-				'slug' => wp_unslash($params['slug'])
-			);
-			$action = $params['action'];
-			$args = (object) $args;
-			$args = apply_filters('plugins_api_args', $args, $action);
-			$data = apply_filters('plugins_api', false, $action, $args);
+			$data = $this->fetchPluginApiData($params['slug'], $params['action']);
 			$resp = array("plugins_info" => $data);
 			break;
 		case "gtpostactinfo":

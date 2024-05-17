@@ -5,11 +5,13 @@ if (!class_exists('BVManageCallback')) :
 class BVManageCallback extends BVCallbackBase {
 	public $settings;
 	public $skin;
+	public $bvinfo;
 
-	const MANAGE_WING_VERSION = 1.3;
+	const MANAGE_WING_VERSION = 1.6;
 
 	public function __construct($callback_handler) {
 		$this->settings = $callback_handler->settings;
+		$this->bvinfo = new MCInfo($this->settings);
 	}
 
 	function getError($err) {
@@ -703,64 +705,113 @@ class BVManageCallback extends BVCallbackBase {
 		return true;
 	}
 
-	function upgradeWoocommerceDb() {
-		if (!defined('WC_ABSPATH')) {
-			return array('status' => 'Error', 'error' => 'WC not found');
-		}
+	function upgradeElementorDB($file) {
+		try {
+			$managerClass = $file === "elementor/elementor.php" ? '\Elementor\Core\Upgrade\Manager' : '\ElementorPro\Core\Upgrade\Manager';
 
-		if (file_exists(WC_ABSPATH . 'includes/class-wc-install.php')) {
-			include_once WC_ABSPATH . 'includes/class-wc-install.php';
-		}
+			if (!class_exists($managerClass)) {
+				return array('status' => 'Error', 'error' => 'Elementor plugin not found or disabled', 'source' => 'BV');
+			}
 
-		if (file_exists(WC_ABSPATH . 'includes/wc-update-functions.php')) {
-			include_once WC_ABSPATH . 'includes/wc-update-functions.php';
-		}
-
-		if (!class_exists('WC_Install') || !method_exists('WC_Install', 'needs_db_update') ||
-				!method_exists('WC_Install', 'get_db_update_callbacks')) {
-			return array('status' => 'Error', 'error' => 'WC files missing or corrupted');
-		}
-
-		$current_db_version = $this->settings->getOption('woocommerce_db_version');
-		if (!$current_db_version) {
-			return array('status' => 'Error', 'error' => 'Current WC DB version not available');
-		}
-
-		$db_update_callbacks = WC_Install::get_db_update_callbacks();
-
-		$loop = 0;
-		foreach ($db_update_callbacks as $version => $update_callbacks) {
-			if (version_compare($current_db_version, $version, '<')) {
-				foreach ($update_callbacks as $update_callback) {
-					WC()->queue()->schedule_single(
-						time() + $loop,
-						'woocommerce_run_update_callback',
-						array('update_callback' => $update_callback),
-						'woocommerce-db-updates'
-					);
-					$loop++;
+			$manager = new $managerClass();
+			$required_methods = array('get_task_runner', 'should_upgrade', 'on_runner_complete',
+					'get_current_version', 'get_new_version');
+			foreach ($required_methods as $method) {
+				if (!method_exists($manager, $method)) {
+					return array('status' => 'Error', 'error' => 'Required methods are missing', 'source' => 'BV');
 				}
 			}
-		}
 
-		$current_wc_version = WC()->version;
-		if (version_compare($current_db_version, $current_wc_version, '<') &&
-				!WC()->queue()->get_next('woocommerce_update_db_to_current_version')) {
-			WC()->queue()->schedule_single(
-				time() + $loop,
-				'woocommerce_update_db_to_current_version',
-				array('version' => $current_wc_version),
-				'woocommerce-db-updates'
+			$updateInfo = array(
+				'from' => $manager->get_current_version(),
+				'to' => $manager->get_new_version(),
 			);
-		}
 
-		return array('status' => 'Done');
+			if ($manager->should_upgrade()) {
+				$callbacks = $manager->get_upgrade_callbacks();
+
+				if (!empty($callbacks)) {
+					$manager->get_task_runner()->handle_immediately($callbacks);
+					$manager->on_runner_complete(true);
+				}
+			} else {
+				return array('status' => 'Error', 'error' => 'Database Update is not available currently',
+						'update_info' => $updateInfo, 'source' => 'BV');
+			}
+
+			return array('status' => 'Done', 'update_info' => $updateInfo);
+		} catch (Exception $e) {
+			return array('status' => 'Error', 'error' => $e->getMessage());
+		}
+	}
+
+	function upgradeWoocommerceDb() {
+		try {
+			if (!defined('WC_ABSPATH')) {
+				return array('status' => 'Error', 'error' => 'WC not found', 'source' => 'BV');
+			}
+
+			if (file_exists(WC_ABSPATH . 'includes/class-wc-install.php')) {
+				include_once WC_ABSPATH . 'includes/class-wc-install.php';
+			}
+
+			if (file_exists(WC_ABSPATH . 'includes/wc-update-functions.php')) {
+				include_once WC_ABSPATH . 'includes/wc-update-functions.php';
+			}
+
+			if (!class_exists('WC_Install') || !method_exists('WC_Install', 'needs_db_update') ||
+					!method_exists('WC_Install', 'get_db_update_callbacks')) {
+				return array('status' => 'Error', 'error' => 'WC files missing or corrupted', 'source' => 'BV');
+			}
+
+			$current_db_version = $this->settings->getOption('woocommerce_db_version');
+			if (!$current_db_version) {
+				return array('status' => 'Error', 'error' => 'Current WC DB version not available', 'source' => 'BV');
+			}
+
+			$latest_db_version = $this->bvinfo->getLatestWooCommerceDBVersion();
+			if ($current_db_version >= $latest_db_version) {
+				return array('status' => 'Error', 'error' => 'WC DB update not available', 'source' => 'BV');
+			}
+
+			$db_update_callbacks = WC_Install::get_db_update_callbacks();
+
+			$loop = 0;
+			foreach ($db_update_callbacks as $version => $update_callbacks) {
+				if (version_compare($current_db_version, $version, '<')) {
+					foreach ($update_callbacks as $update_callback) {
+						WC()->queue()->schedule_single(
+							time() + $loop,
+							'woocommerce_run_update_callback',
+							array('update_callback' => $update_callback),
+							'woocommerce-db-updates'
+						);
+						$loop++;
+					}
+				}
+			}
+
+			$current_wc_version = WC()->version;
+			if (version_compare($current_db_version, $current_wc_version, '<') &&
+					!WC()->queue()->get_next('woocommerce_update_db_to_current_version')) {
+				WC()->queue()->schedule_single(
+					time() + $loop,
+					'woocommerce_update_db_to_current_version',
+					array('version' => $current_wc_version),
+					'woocommerce-db-updates'
+				);
+			}
+
+			return array('status' => 'Done');
+		} catch (Exception $e) {
+			return array('status' => 'Error', 'error' => $e->getMessage());
+		}
 	}
 
 	function upgrade_db(){
 		if (function_exists('wp_upgrade')) {
 			wp_upgrade();
-			return "DONE";
+			return "Done";
 		} else {
 			return "NOUPGRADERFUNCTION";
 		}
@@ -835,6 +886,10 @@ class BVManageCallback extends BVCallbackBase {
 				switch ($file) {
 					case "woocommerce/woocommerce.php":
 						$resp[$file] = $this->upgradeWoocommerceDb();
+						break;
+					case "elementor/elementor.php":
+					case "elementor-pro/elementor-pro.php":
+						$resp[$file] = $this->upgradeElementorDB($file);
 						break;
 				}
 			}

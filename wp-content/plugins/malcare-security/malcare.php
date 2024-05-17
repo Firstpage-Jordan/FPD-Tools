@@ -5,7 +5,7 @@ Plugin URI: https://www.malcare.com
 Description: MalCare WordPress Security Plugin - Malware Scanner, Cleaner, Security Firewall
 Author: MalCare Security
 Author URI: https://www.malcare.com
-Version: 5.25
+Version: 5.55
 Network: True
  */
 
@@ -63,14 +63,14 @@ add_action('clear_bv_services_config', array($wp_action, 'clear_bv_services_conf
 if (defined('WP_CLI') && WP_CLI) {
 		require_once dirname( __FILE__ ) . '/wp_cli.php';
 		$wp_cli = new MCWPCli($bvsettings, $bvinfo, $bvsiteinfo, $bvapi);
-		WP_CLI::add_command('malcare', $wp_cli);
+		WP_CLI::add_command("malcare", $wp_cli);
 }
 
 if (is_admin()) {
 	require_once dirname( __FILE__ ) . '/wp_admin.php';
 	$wpadmin = new MCWPAdmin($bvsettings, $bvsiteinfo);
 	add_action('admin_init', array($wpadmin, 'initHandler'));
-	add_filter('all_plugins', array($wpadmin, 'initBranding'));
+	add_filter('all_plugins', array($wpadmin, 'initWhitelabel'));
 	add_filter('plugin_row_meta', array($wpadmin, 'hidePluginDetails'), 10, 2);
 	add_filter('debug_information', array($wpadmin, 'handlePluginHealthInfo'), 10, 1);
 	if ($bvsiteinfo->isMultisite()) {
@@ -98,6 +98,13 @@ if ($bvinfo->hasValidDBVersion()) {
 		$actlog->init();
 	}
 
+	if ($bvinfo->isServiceActive('maintenance_mode')) {
+		require_once dirname( __FILE__ ). '/maintenance/wp_maintenance.php';
+		$bvconfig = $bvinfo->config;
+		$maintenance = new BVWPMaintenance($bvconfig['maintenance_mode']);
+		$maintenance->init();
+	}
+
 }
 
 if ((array_key_exists('bvplugname', $_REQUEST)) && ($_REQUEST['bvplugname'] == "malcare")) {
@@ -118,24 +125,35 @@ if ((array_key_exists('bvplugname', $_REQUEST)) && ($_REQUEST['bvplugname'] == "
 	$response = new BVCallbackResponse($request->bvb64cksize);
 
 	if ($request->authenticate() === 1) {
-		define('MCBASEPATH', plugin_dir_path(__FILE__));
+		if (array_key_exists('bv_ignr_frm_cptch', $_REQUEST)) {
+			#handling of Contact Forms 7
+			add_filter('wpcf7_skip_spam_check', '__return_true', PHP_INT_MAX, 2);
 
+			#handling of Formidable plugin
+			add_filter('frm_is_field_hidden', '__return_true', PHP_INT_MAX, 3);
 
-		require_once dirname( __FILE__ ) . '/callback/handler.php';
-
-		$params = $request->processParams($_REQUEST);
-		if ($params === false) {
-			$response->terminate($request->corruptedParamsResp());
-		}
-		$request->params = $params;
-		$callback_handler = new BVCallbackHandler($bvdb, $bvsettings, $bvsiteinfo, $request, $account, $response);
-		if ($request->is_afterload) {
-			add_action('wp_loaded', array($callback_handler, 'execute'));
-		} else if ($request->is_admin_ajax) {
-			add_action('wp_ajax_bvadm', array($callback_handler, 'bvAdmExecuteWithUser'));
-			add_action('wp_ajax_nopriv_bvadm', array($callback_handler, 'bvAdmExecuteWithoutUser'));
+			#handling of WP Forms plugin
+			add_filter('wpforms_process_bypass_captcha', '__return_true', PHP_INT_MAX, 3);
 		} else {
-			$callback_handler->execute();
+			define('MCBASEPATH', plugin_dir_path(__FILE__));
+
+
+			require_once dirname( __FILE__ ) . '/callback/handler.php';
+
+			$params = $request->processParams($_REQUEST);
+			if ($params === false) {
+				$response->terminate($request->corruptedParamsResp());
+			}
+			$request->params = $params;
+			$callback_handler = new BVCallbackHandler($bvdb, $bvsettings, $bvsiteinfo, $request, $account, $response);
+			if ($request->is_afterload) {
+				add_action('wp_loaded', array($callback_handler, 'execute'));
+			} else if ($request->is_admin_ajax) {
+				add_action('wp_ajax_bvadm', array($callback_handler, 'bvAdmExecuteWithUser'));
+				add_action('wp_ajax_nopriv_bvadm', array($callback_handler, 'bvAdmExecuteWithoutUser'));
+			} else {
+				$callback_handler->execute();
+			}
 		}
 	} else {
 		$response->terminate($request->authFailedResp());
@@ -143,13 +161,12 @@ if ((array_key_exists('bvplugname', $_REQUEST)) && ($_REQUEST['bvplugname'] == "
 } else {
 	if ($bvinfo->hasValidDBVersion()) {
 		if ($bvinfo->isProtectModuleEnabled()) {
-		require_once dirname( __FILE__ ) . '/protect/wp/protect.php';
-		$bvprotect = new BVProtect($bvdb, $bvsettings);
-		$bvprotect->init();
-		if ($bvinfo->isActivePlugin() && !(defined( 'WP_CLI' ) && WP_CLI)) {
-			$bvprotect->run();
+			require_once dirname( __FILE__ ) . '/protect/protect.php';
+			add_action('clear_pt_config', array('MCProtect_V555', 'uninstall'));
+			if ($bvinfo->isActivePlugin() && !(defined( 'WP_CLI' ) && WP_CLI)) {
+				MCProtect_V555::init(MCProtect_V555::MODE_WP);
+			}
 		}
-	}
 
 		if ($bvinfo->isDynSyncModuleEnabled()) {
 		require_once dirname( __FILE__ ) . '/wp_dynsync.php';
@@ -184,4 +201,5 @@ if ((array_key_exists('bvplugname', $_REQUEST)) && ($_REQUEST['bvplugname'] == "
 		add_filter('site_transient_update_plugins', array($wpadmin, 'hidePluginUpdate'));
 	}
 
+	##THIRDPARTYCACHINGMODULE##
 }

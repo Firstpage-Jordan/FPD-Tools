@@ -9,8 +9,8 @@ if (!class_exists('MCInfo')) :
 		public $brandname = 'MalCare';
 		public $badgeinfo = 'mcbadge';
 		public $ip_header_option = 'mcipheader';
-		public $brand_option = 'mcbrand';
-		public $version = '5.25';
+		public $brand_option = 'bv_whitelabel_infos';
+		public $version = '5.55';
 		public $webpage = 'https://www.malcare.com';
 		public $appurl = 'https://app.malcare.com';
 		public $slug = 'malcare-security/malcare.php';
@@ -40,6 +40,46 @@ if (!class_exists('MCInfo')) :
 			return MCInfo::DB_VERSION === $this->getCurrentDBVersion();
 		}
 
+		public function getLatestWooCommerceDBVersion() {
+			if (defined('WC_ABSPATH') && file_exists(WC_ABSPATH . 'includes/class-wc-install.php')) {
+				include_once WC_ABSPATH . 'includes/class-wc-install.php';
+
+				if (class_exists('WC_Install')) {
+					$update_versions = array_keys(WC_Install::get_db_update_callbacks());
+
+					if (!empty($update_versions)) {
+						asort($update_versions);
+						return end($update_versions);
+					}
+				}
+			}
+
+			return false;
+		}
+
+		public function getConnectionKey() {
+			require_once dirname( __FILE__ ) . '/recover.php';
+			$bvsiteinfo = new MCWPSiteInfo();
+			return base64_encode(MCRecover::defaultSecret($this->settings).":".$bvsiteinfo->siteurl());
+		}
+
+		public function getDefaultSecret() {
+			require_once dirname( __FILE__ ) . '/recover.php';
+			$bvsiteinfo = new MCWPSiteInfo();
+			return MCRecover::defaultSecret($this->settings);
+		}
+
+		public function getLatestElementorDBVersion($file) {
+			$managerClass = $file === "elementor/elementor.php" ? '\Elementor\Core\Upgrade\Manager' : '\ElementorPro\Core\Upgrade\Manager';
+
+			if (!class_exists($managerClass)) {
+				return false;
+			}
+
+			$manager = new $managerClass();
+			return $manager->get_new_version();
+		}
+
 		public static function getRequestID() {
 			if (!defined("BV_REQUEST_ID")) {
 				define("BV_REQUEST_ID", uniqid(mt_rand()));
@@ -62,12 +102,51 @@ if (!class_exists('MCInfo')) :
 			return false;
 		}
 
+		public function canWhiteLabel($slug = NULL) {
+			if (array_key_exists("bv_override_global_whitelabel", $_REQUEST)) {
+				return false;
+			}
+			if (array_key_exists("bv_override_plugin_whitelabel", $_REQUEST) && isset($slug) &&
+				$_REQUEST["bv_override_plugin_whitelabel"] === $slug) {
+				return false;
+			}
+			return true;
+		}
+
+		public function getPluginWhitelabelInfo($slug = null) {
+			if ($slug === null) {
+				$slug = $this->slug;
+			}
+			$whitelabel_infos = $this->getPluginsWhitelabelInfos();
+			if (!array_key_exists($slug, $whitelabel_infos) || !is_array($whitelabel_infos[$slug])) {
+				return array();
+			}
+			return $whitelabel_infos[$slug];
+		}
+
 		public function getBrandInfo() {
 			return $this->settings->getOption($this->brand_option);
 		}
 
+		public function getPluginsWhitelabelInfos() {
+			$whitelabel_infos = $this->settings->getOption($this->brand_option);
+			return is_array($whitelabel_infos) ? $whitelabel_infos : array();
+		}
+
+		public function getPluginsWhitelabelInfoByTitle() {
+			$whitelabel_infos = $this->getPluginsWhitelabelInfos();
+			$whitelabel_infos_by_title = array();
+			foreach ($whitelabel_infos as $slug => $whitelabel_info) {
+				if (is_array($whitelabel_info) && array_key_exists('default_title', $whitelabel_info) && isset($whitelabel_info['default_title'])) {
+					$whitelabel_info['slug'] = $slug;
+					$whitelabel_infos_by_title[$whitelabel_info['default_title']] = $whitelabel_info;
+				}
+			}
+			return $whitelabel_infos_by_title;
+		}
+
 		public function getBrandName() {
-			$brand = $this->getBrandInfo();
+			$brand = $this->getPluginWhitelabelInfo();
 			if (is_array($brand) && array_key_exists('menuname', $brand)) {
 				return $brand['menuname'];
 			}
@@ -80,7 +159,7 @@ if ($bvinfo->canSetCWBranding()) {
 		}
 
 		public function getBrandIcon() {
-			$brand = $this->getBrandInfo();
+			$brand = $this->getPluginWhitelabelInfo();
 			if (is_array($brand) && array_key_exists('brand_icon', $brand)) {
 				return $brand['brand_icon'];
 			}
@@ -96,7 +175,7 @@ if ($bvinfo->canSetCWBranding()) {
 			if (defined('BV_APP_URL')) {
 				return BV_APP_URL;
 			} else {
-				$brand = $this->getBrandInfo();
+				$brand = $this->getPluginWhitelabelInfo();
 				if (is_array($brand) && array_key_exists('appurl', $brand)) {
 					return $brand['appurl'];
 				}
