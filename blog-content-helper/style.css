@@ -49,6 +49,13 @@ body {
   float: right;
 }
 
+.dhl-button {
+  margin-right: 15px;
+  margin-top: 10px;
+  box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px;
+  float: right;
+}
+
 .clear-button {
   margin-top: 10px;
   box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px;
