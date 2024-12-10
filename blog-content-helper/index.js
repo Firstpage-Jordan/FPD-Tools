@@ -106,7 +106,7 @@ copyPreviewButton.addEventListener("click", () => {
 dhlButton.addEventListener("click", () => {
   const changedOutput = outputField.value.replace(
     /<a href=/g,
-    "<a style='color:red !important;' href="
+    "<a style='color:#D40511 !important;' href="
   );
 
   outputField.value = changedOutput;
