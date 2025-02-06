@@ -6,6 +6,7 @@ const clearButton = document.querySelector(".clear-button");
 const message = document.querySelector(".message");
 const copyButton = document.querySelector(".copy-button");
 const copyPreviewButton = document.querySelector(".copy-preview-button");
+const dhlButton = document.querySelector(".dhl-button");
 
 submitButton.addEventListener("click", function () {
   let uncleanContent = inputField.value;
@@ -99,4 +100,17 @@ copyPreviewButton.addEventListener("click", () => {
     copyPreviewButton.innerHTML =
       'Copy to clipboard <i class="fa fa-solid fa-copy"></i>';
   }, 2000);
+});
+
+// change links to red
+dhlButton.addEventListener("click", () => {
+  const changedOutput = outputField.value.replace(
+    /<a href=/g,
+    "<a style='color:#D40511 !important;' href="
+  );
+
+  outputField.value = changedOutput;
+
+  // change the output HTML preview as well
+  outputhtml.innerHTML = changedOutput;
 });
